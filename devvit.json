@@ -1,0 +1,42 @@
+{
+	"$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+	"name": "godot-bot",
+	"server": {
+		"dir": "dist/server",
+		"entry": "index.cjs"
+	},
+	"scheduler":
+	{
+		"tasks":
+		{
+			"check-for-blog-post":
+			{
+				"endpoint": "/internal/scheduler/check-for-blog-post",
+				"cron": "1 */1 * * *"
+			}
+		}
+	},
+	"menu": {
+		"items": [
+			{
+				"label": "Check blog now",
+				"description": "for checking blog",
+				"location": "subreddit",
+				"forUserType": "moderator",
+				"endpoint": "/internal/scheduler/check-for-blog-post"
+			}
+		]
+	},
+	"triggers": {
+		"onAppInstall": "/internal/on-app-install"
+	},
+	"dev": {
+		"subreddit": "godot_bot_dev"
+	},
+	"permissions": {
+		"http": {
+			"enable": true,
+			"domains": ["godotengine.org"]
+		}
+	}
+}

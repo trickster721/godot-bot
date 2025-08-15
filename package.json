@@ -1,22 +1,34 @@
 {
   "private": true,
   "name": "godot-bot",
-  "version": "0.0.0",
+  "version": "0.0.2",
   "license": "BSD-3-Clause",
   "type": "module",
   "scripts": {
-    "deploy": "devvit upload",
-    "dev": "dotenv -e .env -- devvit playtest",
+    "postinstall": "npm run build",
+    "build:client": "cd src/client && vite build",
+    "build:server": "cd src/server && vite build",
+    "build": "npm run build:client && npm run build:server",
+    "deploy": "npm run build && devvit upload",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"CLIENT,SERVER,DEVVIT\" -c \"blue,green,magenta\" \"npm run dev:client\" \"npm run dev:server\" \"npm run dev:devvit\"",
+    "dev:client": "cd src/client && vite build --watch",
+    "dev:devvit": "dotenv -e .env -- devvit playtest",
+    "dev:server": "cd src/server && vite build --watch",
     "login": "devvit login",
-    "launch": "devvit publish",
+    "launch": "npm run build && npm run deploy && devvit publish",
     "type-check": "tsc --build"
   },
   "dependencies": {
-    "@devvit/public-api": "0.12.0"
+    "@devvit/web": "0.12.0",
+    "devvit": "0.12.0",
+    "express": "5.1.0",
+	"rss-parser": "3.13.0"
   },
   "devDependencies": {
-    "devvit": "0.12.0",
+    "@types/express": "5.0.1",
+    "concurrently": "9.1.2",
     "dotenv-cli": "8.0.0",
-    "typescript": "5.8.3"
+    "typescript": "5.8.2",
+    "vite": "6.3.4"
   }
 }
