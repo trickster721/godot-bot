@@ -13,6 +13,24 @@
 				"location": "subreddit",
 				"forUserType": "moderator",
 				"endpoint": "/internal/scheduler/check-for-blog-post"
+			},
+			{
+				"label": "Set Blog #1 (News)",
+				"location": "post",
+				"forUserType": "moderator",
+				"endpoint": "/internal/menu/replace_blog_post_1"
+			},
+			{
+				"label": "Set Blog #2 (Godot 4)",
+				"location": "post",
+				"forUserType": "moderator",
+				"endpoint": "/internal/menu/replace_blog_post_2"
+			},
+			{
+				"label": "Set Blog #3 (Godot 3)",
+				"location": "post",
+				"forUserType": "moderator",
+				"endpoint": "/internal/menu/replace_blog_post_3"
 			}
 		]
 	},
@@ -31,6 +49,13 @@
 		"subreddit": "godot_bot_dev"
 	},
 	"permissions": {
+		"reddit": {
+			"enable": true,
+			"asUser": [
+				"SUBMIT_POST",
+				"SUBMIT_COMMENT"
+			]
+		},
 		"http": {
 			"enable": true,
 			"domains": [
