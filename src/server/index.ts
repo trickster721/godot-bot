@@ -8,6 +8,7 @@ import {
 	Post,
 	settings
 } from "@devvit/web/server";
+import {UiResponse} from '@devvit/web/shared';
 
 // router (event system) setup
 const app = express();
@@ -21,67 +22,44 @@ app.use(express.text());
 
 const router = express.Router();
 
-interface StickySlot {
+interface RSSPostSlot {
 	num: number, // sticky slot number
-	release: string, // substring in title to determine Godot version, or "" for non-release news
-	blog: Boolean // check official blog, or just use saved post?
+	rss: boolean, // rss enabled in slot settings
+	category: string, // list of RSS category tags seperated by |, match any exact
+	title: string, // RSS title tag, match partial, ignore if empty string
+	flair: string, // flairID
+	flair_text: string // text to use for flair
 }
 
-interface BlogPost {
+interface RSSPost {
 	link: string,
 	title: string,
 	summary: string,
-	category: string,
-	release: Boolean
+	category: string
 }
 
-// database key prefix for blog posts
-const blog_save_prefix: string = "blog_post_slot_";
+// database key prefix for RSS posts
+const rss_save_prefix: string = "rss_post_slot_";
 
-// check for blog posts
+// check for RSS posts
 // event received from scheduler or debug menu option
 // router endpoints (and other settings) are configured in devvit.json
-router.post("/internal/scheduler/check-for-blog-post", async (_req, res): Promise<void> => {
+router.post("/internal/scheduler/fetch_rss_posts", async (_req, res): Promise<void> => {
 
-	console.log(`Checking for new blog post at ${new Date().toTimeString()}`);
+	const rss_enabled = await settings.get("rss_enabled");
+	if (!rss_enabled) {
+		res.json({showToast: "RSS is disabled in bot settings"});
+		return;
+	}
+
+	console.log(`Fetching RSS posts at ${new Date().toTimeString()}`);
 
 	const {subredditName} = context;
 
-	// slot config
-	// todo: add client config form
-	// due to API limitations:
-	// - start at 1 and use consecutive slots, no skipping
-	// - all slots are controlled by the bot
-	const slots: StickySlot[] = [
-		{
-			// News slot (default)
-			num: 1,
-			release: "",
-			blog: true
-		},
-		{
-			// Godot 4 release slot
-			num: 2,
-			release: "Godot 4",
-			blog: true
-		},
-		{
-			// Godot 3 release slot
-			num: 3,
-			release: "Godot 3",
-			blog: true
-		}
-	];
-
-	// use a flair style preset from the subreddit
-	// this is a per-subreddit setting on the app dev panel
-	// r/godot_bot_dev blue style - "2863c3ce-7cb4-11f0-9fc4-3a7035d1e990"
-	// r/godot blue style - "3ea7e314-e209-11ee-875d-863f4dc3d1d4"
-	const flair_style = await settings.get("flair_code");
-
 	// server-side http request
 	// godotengine.org domain has been manually whitelisted by Reddit for this app
-	const response = await fetch('https://godotengine.org/rss.xml', {
+	const rss_url = await settings.get("rss_url");
+	const response = await fetch(rss_url, {
 		method: 'GET',
 		headers: {
 			'Content-Type': 'application/rss+xml',
@@ -98,65 +76,116 @@ router.post("/internal/scheduler/check-for-blog-post", async (_req, res): Promis
 	}
 	console.log(`found ${rss_items.length} rss items`);
 
-	const blog_posts: BlogPost[] = [];
+	const rss_posts: RSSPost[] = [];
 
-	// parse all the blog posts first, makes things simpler
+	// parse all the rss posts first, makes things simpler
 	// this may crash if the RSS format is invalid
 	for (let item of rss_items) {
-		const category = item[0].match(/(?<=<category>)(.*?)(?=<\/category>)/g)[0];
-		const release: Boolean = (category === "Release" || category === "Pre-release");
-		blog_posts.push({
+		rss_posts.push({
 			link:
 				item[0].match(/(?<=<link>)(.*?)(?=<\/link>)/g)[0],
 			title:
 				item[0].match(/(?<=<title>)(.*?)(?=<\/title>)/g)[0],
 			summary:
 				item[0].match(/(?<=<summary>)(.*?)(?=<\/summary)/g)[0],
-			category: category,
-			release: release
+			category:
+				item[0].match(/(?<=<category>)(.*?)(?=<\/category>)/g)[0]
 		});
 
 	}
 
-	const posts_to_stick: Post[] = [];
+	const slots: RSSPostSlot[] = [];
+
+	for (var i = 1; i < 7; i += 1) {
+		const n = i.toString();
+		slots.push({
+			num: i,
+			rss: await settings.get("use_rss_slot_" + n),
+			category: await settings.get("rss_category_slot_" + n),
+			title: await settings.get("rss_title_slot_" + n),
+			flair: await settings.get("rss_flair_slot_" + n),
+			flair_text: await settings.get("rss_flair_text_slot_" + n),
+		});
+	}
 
 	for (let slot of slots) {
-		console.log(`checking blog for slot ${slot.num}`);
+		if (!slot.rss) {
+			console.log(`skipping slot ${slot.num}`);
+			continue;
+		}
+		console.log(`checking rss for slot ${slot.num}`);
 		// get existing saved post (if any)
-		const save_key: string = blog_save_prefix + slot.num.toString();
+		const save_key: string = rss_save_prefix + slot.num.toString();
 		const saved_post_id = await redis.get(save_key);
 		let post: Post | null = null;
 		if (saved_post_id) {
 			post = await reddit.getPostById(saved_post_id);
 		}
-		// is this an official slot, or something else?
-		if (slot.blog) {
-			for (let blog_post of blog_posts) {
-				// match category and Godot version (from title string)
-				if ((!slot.release && !blog_post.release) || (slot.release && blog_post.release && blog_post.title.search(slot.release) > -1)) {
-					console.log(`found latest blog for slot ${slot.num}: ${blog_post.link}`);
-					if (!post || post.url != blog_post.link) {
-						console.log(`saved post mismatch, creating new blog post for slot ${slot.num}`);
-						post = await reddit.submitPost({
-							subredditName: subredditName,
-							title: blog_post.title,
-							url: blog_post.link,
-							text: blog_post.summary,
-							flairId: flair_style,
-							// flair text is arbitrary, we could use all the blog categories if we wanted
-							flairText: blog_post.release ? "official - releases" : "official - news"
-						});
-					}
-					break; // stop after first (most recent) matching blog
+
+		for (let rss_post of rss_posts) {
+			// match category and title
+			let categories: string[] = [];
+			if (slot.category) {categories = slot.category.split("|");}
+			if (categories.includes(rss_post.category) && (!slot.title || rss_post.title.search(slot.title) > -1)) {
+				console.log(`found latest rss post for slot ${slot.num}: ${rss_post.link}`);
+				if (!post || post.url != rss_post.link) {
+					console.log(`saved post mismatch, creating new rss post for slot ${slot.num}`);
+					post = await reddit.submitPost({
+						subredditName: subredditName,
+						title: rss_post.title,
+						url: rss_post.link,
+						text: rss_post.summary,
+						flairId: slot.flair,
+						// flair text is arbitrary, we could use all the blog categories if we wanted
+						flairText: slot.flair_text
+					});
 				}
+				break; // stop after first (most recent) matching rss post
 			}
 		}
+
 		if (post) {
-			// save post to slot in database, unsticky it, and queue to (re)sticky
+			// save post to slot in database
 			await redis.set(save_key, post.id);
+		}
+	}
+
+	sticky_rss_posts();
+
+	console.log('finished successfully!');
+
+	// UI response if we entered from the menu option
+	res.json({
+		showToast: "Done! Please Refresh the page"
+	});
+
+});
+
+router.post("/internal/menu/sticky_rss_posts", async (_req, res): Promise<void> => {
+	console.log('re-stickying RSS posts');
+	sticky_rss_posts();
+	console.log('finished successfully!');
+	res.json({showToast: "Done! Please Refresh the page"});
+});
+
+// re-sticky saved RSS posts
+async function sticky_rss_posts(): Promise<void> {
+
+	const posts_to_stick: Post[] = [];
+
+	for (var i = 1; i < 7; i += 1) {
+		const saved_post_id = await redis.get(rss_save_prefix + i.toString());
+		let post: Post | null = null;
+		if (saved_post_id) {
+			post = await reddit.getPostById(saved_post_id);
 			await post.unsticky(); // needed to avoid error
 			posts_to_stick.push(post);
 		}
+	}
+
+	if (!posts_to_stick.length) {
+		console.log('no saved posts to sticky!');
+		return;
 	}
 
 	// newest to oldest
@@ -171,42 +200,74 @@ router.post("/internal/scheduler/check-for-blog-post", async (_req, res): Promis
 			await post.sticky();
 		}
 	}
-
-	console.log('finished successfully!');
-
-	// UI response if we entered from the menu option
-	res.json({
-		showToast: "Done!"
-	});
-
-});
+}
 
 // menu options to save a post in a database slot
 // listed on moderation menu (shield)
-// post should be a link with most recent URL from RSS feed
+// posts to RSS-enabled slots should be a link with most recent URL from RSS feed
 // post will be replaced next update if URL doesn't match
-async function replace_blog_post(slot_num: number): Promise<void> {
-	console.log(`mod action: replace blog post ${slot_num}`);
+
+router.post("/internal/form/override_rss_post_submit", async (req, res: Response<UIResponse>) => {
+	const slot_num = req.body.slot_number;
+	const postId = req.body.post_id;
+	console.log(`overriding rss slot ${slot_num} with post ${postId}`);
+	const save_key: string = rss_save_prefix + slot_num.toString();
+	await redis.set(save_key, postId);
+	sticky_rss_posts();
+	res.json({showToast: "Done! Please Refresh the page"});
+});
+
+router.post("/internal/menu/override_rss_post", async (_req, res: Response<UIResponse>) => {
 	const {postId} = context;
-	const post = await reddit.getPostById(postId);
-	const save_key: string = blog_save_prefix + slot_num.toString();
-	await redis.set(save_key, post.id);
-	console.log("finished successfully!");
-}
-
-router.post("/internal/menu/replace_blog_post_1", async (_req, res): Promise<void> => {
-	replace_blog_post(1);
-	res.json({showToast: "Done! Please refresh page"});
+	res.json({
+		showForm: {
+			name: "override_rss_post_submit",
+			form: {
+				title: 'Assign post to sticky slot',
+				description: '(Does not override RSS settings)',
+				fields: [
+					{
+						type: "string",
+						name: "post_id",
+						label: "PostId",
+						defaultValue: postId,
+						disabled: true
+					},
+					{
+						type: "select",
+						name: "slot_number",
+						label: "Slot number",
+						options: [
+							{label: '1', value: 1},
+							{label: '2', value: 2},
+							{label: '3', value: 3},
+							{label: '4', value: 4},
+							{label: '5', value: 5},
+							{label: '6', value: 6},
+						],
+					}
+				],
+				acceptLabel: 'Submit',
+				cancelLabel: 'Cancel',
+			}
+		}
+	});
 });
 
-router.post("/internal/menu/replace_blog_post_2", async (_req, res): Promise<void> => {
-	replace_blog_post(2);
-	res.json({showToast: "Done! Please refresh page"});
-});
-
-router.post("/internal/menu/replace_blog_post_3", async (_req, res): Promise<void> => {
-	replace_blog_post(3);
-	res.json({showToast: "Done! Please refresh page"});
+router.post("/internal/menu/clear_rss_post", async (_req, res) => {
+	const {postId} = context;
+	console.log(`clearing post id ${postId}`)
+	for (var i = 1; i < 7; i += 1) {
+		const saved_post_id = await redis.get(rss_save_prefix + i.toString());
+		console.log(`slot ${i} has post id ${saved_post_id}`)
+		if (saved_post_id && postId == saved_post_id) {
+			await redis.set(rss_save_prefix + i.toString(), "");
+			sticky_rss_posts();
+			res.json({showToast: "Done! Please Refresh the page"});
+			return;
+		}
+	}
+	res.json({showToast: "Post was not sticky..."});
 });
 
 app.use(router);

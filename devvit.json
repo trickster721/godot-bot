@@ -8,29 +8,28 @@
 	"menu": {
 		"items": [
 			{
-				"label": "trigger blog check",
-				"description": "(for debug)",
+				"label": "Fetch RSS posts now",
 				"location": "subreddit",
 				"forUserType": "moderator",
-				"endpoint": "/internal/scheduler/check-for-blog-post"
+				"endpoint": "/internal/scheduler/fetch_rss_posts"
 			},
 			{
-				"label": "Set Blog #1 (News)",
-				"location": "post",
+				"label": "Re-sticky RSS posts",
+				"location": "subreddit",
 				"forUserType": "moderator",
-				"endpoint": "/internal/menu/replace_blog_post_1"
+				"endpoint": "/internal/menu/sticky_rss_posts"
 			},
 			{
-				"label": "Set Blog #2 (Godot 4)",
+				"label": "Assign RSS slot...",
 				"location": "post",
 				"forUserType": "moderator",
-				"endpoint": "/internal/menu/replace_blog_post_2"
+				"endpoint": "/internal/menu/override_rss_post"
 			},
 			{
-				"label": "Set Blog #3 (Godot 3)",
+				"label": "Remove from RSS slot",
 				"location": "post",
 				"forUserType": "moderator",
-				"endpoint": "/internal/menu/replace_blog_post_3"
+				"endpoint": "/internal/menu/clear_rss_post"
 			}
 		]
 	},
@@ -40,7 +39,7 @@
 		{
 			"check-for-blog-post":
 			{
-				"endpoint": "/internal/scheduler/check-for-blog-post",
+				"endpoint": "/internal/scheduler/fetch_rss_posts",
 				"cron": "0 */1 * * *"
 			}
 		}
@@ -65,11 +64,150 @@
 	},
 	"settings": {
 		"subreddit": {
-			"flair_code": {
+			"rss_enabled": {
+				"type": "boolean",
+				"label": "Enable RSS post fetching"
+			},
+			"rss_url": {
 				"type": "string",
-				"label": "flairId to use for posts",
-				"defaultValue": ""
+				"label": "RSS feed URL, from Reddit's approved list",
+				"defaultValue": "https://godotengine.org/rss.xml"
+			},
+			"use_rss_slot_1": {
+				"type": "boolean",
+				"label": "Enable RSS post in slot 1"
+			},
+			"rss_category_slot_1": {
+				"type": "string",
+				"label": "With RSS category (Use | to seperate: Category One|Category Two|Category Three)",
+				"placeholder": "Category One|Category Two|Category Three"
+			},
+			"rss_title_slot_1": {
+				"type": "string",
+				"label": "With partial RSS title (optional)"
+			},
+			"rss_flair_slot_1": {
+				"type": "string",
+				"label": "flairID code (optional)",
+				"placeholder": "abcd1234-abcd-1234-abcd-1234abcd1234"
+			},
+			"rss_flair_text_slot_1": {
+				"type": "string",
+				"label": "Flair text (optional)"
+			},
+			"use_rss_slot_2": {
+				"type": "boolean",
+				"label": "Enable RSS post in slot 2"
+			},
+			"rss_category_slot_2": {
+				"type": "string",
+				"label": "RSS categories for slot 2",
+				"placeholder": "Category One|Category Two|Category Three"
+			},
+			"rss_title_slot_2": {
+				"type": "string",
+				"label": "With partial RSS title (optional)"
+			},
+			"rss_flair_slot_2": {
+				"type": "string",
+				"label": "flairID code (optional)",
+				"placeholder": "abcd1234-abcd-1234-abcd-1234abcd1234"
+			},
+			"rss_flair_text_slot_2": {
+				"type": "string",
+				"label": "Flair text (optional)"
+			},
+			"use_rss_slot_3": {
+				"type": "boolean",
+				"label": "Enable RSS post in slot 3"
+			},
+			"rss_category_slot_3": {
+				"type": "string",
+				"label": "RSS categories for slot 3",
+				"placeholder": "Category One|Category Two|Category Three"
+			},
+			"rss_title_slot_3": {
+				"type": "string",
+				"label": "With partial RSS title (optional)"
+			},
+			"rss_flair_slot_3": {
+				"type": "string",
+				"label": "flairID code (optional)",
+				"placeholder": "abcd1234-abcd-1234-abcd-1234abcd1234"
+			},
+			"rss_flair_text_slot_3": {
+				"type": "string",
+				"label": "Flair text (optional)"
+			},
+			"use_rss_slot_4": {
+				"type": "boolean",
+				"label": "Enable RSS post in slot 4"
+			},
+			"rss_category_slot_4": {
+				"type": "string",
+				"label": "RSS categories for slot 4",
+				"placeholder": "Category One|Category Two|Category Three"
+			},
+			"rss_title_slot_4": {
+				"type": "string",
+				"label": "With partial RSS title (optional)"
+			},
+			"rss_flair_slot_4": {
+				"type": "string",
+				"label": "flairID code (optional)",
+				"placeholder": "abcd1234-abcd-1234-abcd-1234abcd1234"
+			},
+			"rss_flair_text_slot_4": {
+				"type": "string",
+				"label": "Flair text (optional)"
+			},
+			"use_rss_slot_5": {
+				"type": "boolean",
+				"label": "Enable RSS post in slot 5"
+			},
+			"rss_category_slot_5": {
+				"type": "string",
+				"label": "RSS categories for slot 5",
+				"placeholder": "Category One|Category Two|Category Three"
+			},
+			"rss_title_slot_5": {
+				"type": "string",
+				"label": "With partial RSS title (optional)"
+			},
+			"rss_flair_slot_5": {
+				"type": "string",
+				"label": "flairID code (optional)e",
+				"placeholder": "abcd1234-abcd-1234-abcd-1234abcd1234"
+			},
+			"rss_flair_text_slot_5": {
+				"type": "string",
+				"label": "Flair text (optional)"
+			},
+			"use_rss_slot_6": {
+				"type": "boolean",
+				"label": "Enable RSS post in slot 6"
+			},
+			"rss_category_slot_6": {
+				"type": "string",
+				"label": "RSS categories for slot 6",
+				"placeholder": "Category One|Category Two|Category Three"
+			},
+			"rss_title_slot_6": {
+				"type": "string",
+				"label": "With partial RSS title (optional)"
+			},
+			"rss_flair_slot_6": {
+				"type": "string",
+				"label": "flairID code (optional)",
+				"placeholder": "abcd1234-abcd-1234-abcd-1234abcd1234"
+			},
+			"rss_flair_text_slot_6": {
+				"type": "string",
+				"label": "Flair text (optional)"
 			}
 		}
-	}
+	},
+	"forms": {
+     "override_rss_post_submit": "/internal/form/override_rss_post_submit"
+    }
 }
